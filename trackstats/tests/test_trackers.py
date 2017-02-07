@@ -16,7 +16,10 @@ from trackstats.trackers import (
     CountObjectsByDateTracker,
     CountObjectsByDateAndObjectTracker)
 
-from trackstats.tests.models import Comment
+from trackstats.tests.models import (
+    Article,
+    Comment,
+    Publication)
 
 
 def to_date(dt):
@@ -149,3 +152,43 @@ class ObjectTrackersTestCase(TestCase):
         self.assertEqual(
             stats.count(),
             len(self.expected_daily))
+
+
+class ObjectTrackersM2MTestCase(TestCase):
+
+    def setUp(self):
+        self.User = get_user_model()
+        domain = Domain.objects.register(ref='Publication')
+        self.publication_count = Metric.objects.register(
+            domain=domain,
+            ref='publication_count'
+        )
+        dt = timezone.now()
+        self.publications = []
+        for i in range(5):
+            self.publications.append(Publication.objects.create(
+                title='Publication {}'.format(i),
+                timestamp=dt - timedelta(days=i))
+            )
+
+        self.articles = []
+        self.articles.append(Article.objects.create(
+            headline='Developer goes broke, sells bananas for living'))
+        self.articles[-1].publications.add(*self.publications[:2])
+
+        self.articles.append(Article.objects.create(
+            headline='Whale falls from sky, kills plant pot'))
+        self.articles[-1].publications.add(*self.publications[1:])
+
+    def test_tracking_through_m2m(self):
+        publications = Publication.objects.values('pk')
+        query = Article.publications.through.objects.filter(
+            pk__in=[p['pk'] for p in publications])
+
+        CountObjectsByDateAndObjectTracker(
+            period=Period.DAY,
+            metric=self.publication_count,
+            object_model=Article.publications.through,
+            object_field='article',
+            date_field='publication__timestamp'
+        ).track(query)

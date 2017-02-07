@@ -82,12 +82,12 @@ class ObjectsByDateTracker(object):
             tzname = (
                 timezone.get_current_timezone_name()
                 if settings.USE_TZ else None)
-
-            is_datetime = isinstance(qs.model._meta.get_field(
-                self.date_field), models.DateTimeField)
+            # is_datetime = isinstance(qs.model._meta.get_field(
+            #     self.date_field), models.DateTimeField)
+            is_datetime = True
             if is_datetime:
                 date_sql, tz_params = connection.ops.datetime_cast_date_sql(
-                    self.date_field,
+                    'timestamp', #self.date_field,
                     tzname)
                 vals = qs.extra(
                     select={"ts_date": date_sql},
@@ -104,6 +104,7 @@ class ObjectsByDateTracker(object):
             vals = vals.filter(
                 **{self.date_field + '__gte': start_dt}).values(
                 *values_fields).order_by().annotate(ts_n=self.aggr_op)
+            import ipdb;    ipdb.set_trace()
             # TODO: Bulk create
             for val in vals:
                 self.statistic_model.objects.record(
